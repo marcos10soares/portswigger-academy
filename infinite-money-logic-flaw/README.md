@@ -12,22 +12,7 @@ URL: https://portswigger.net/web-security/logic-flaws/examples/lab-logic-flaws-i
 
 ## Solution
 
-We take advantage of a logic flaw, where we can buy a gift card for $10 with a 30% discount (paying only $7), and after we can redeem the gift card again for $10, so we get a profit of $3 per gift cards.
-
-The process is automated with `main.go` to run just do:
-```
-go run main.go
-```
-
-Before running don't forget to updated the configuration variables on the beginning of the file, required conf:
-```go
-const (
-	baseURL = "https://acb81f601fca3cc3809b0e5000d900a0.web-security-academy.net/"
-	csrf          = "LCEepui73UVECHlN3R84TDYwCdfXc5cX"         // get this info from a POST request to /cart/coupon using Burp
-	cookie        = "session=ZrqCi4oh69dHpHLsSdUv072OJNOfw8Sf" // get this info from a POST request to /cart/coupon using Burp
-	targetBalance = 1337
-)
-```
+We take advantage of a logic flaw, where we can buy a gift card for $10 with a 30% discount (using a coupon `SIGNUP30`, paying only $7), and after we can redeem the gift card again for $10, so we get a profit of $3 per gift cards.
 
 The script increases the amount of gift cards to buy **until the cap of 99** gift cards per purchase is reached, below you can find the evolution of the purchases and balance:
 ```
@@ -35,8 +20,26 @@ Store Credit Evolution:  [$100 $130 $169 $217 $280 $364 $472 $613 $796 $1033 $13
 GiftCard Qty Evolution:  [10   13   16   21   28   36   47   61   79   99    99    ended]
 ```
 
-## Expected Behaviour
+## Usage
 
+Before running don't forget to update the configuration variables on the beginning of the file.
+
+Required conf:
+```go
+const (
+	baseURL = "https://acb81f601fca3cc3809b0e5000d900a0.web-security-academy.net/" // your url for the lab
+	csrf          = "LCEepui73UVEdHlN3R84TDYwCdfXc5cX"         // get this info from a POST request to /cart/coupon using Burp, or any browser
+	cookie        = "session=ZrqCi4oh69dHpHLxSdUv072OJNOfw8Sf" // get this info from a POST request to /cart/coupon using Burp, or any browser
+	targetBalance = 1337
+)
+```
+
+To run just do:
+```
+go run main.go
+```
+
+Expected ouput:
 ```
 $ go run main.go
 
