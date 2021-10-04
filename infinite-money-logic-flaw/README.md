@@ -58,4 +58,6 @@ status:  200 OK
 status:  200 OK
 
 ...
+
+Finished executing, current balance: $ 1627
 ```
